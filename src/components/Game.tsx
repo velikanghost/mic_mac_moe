@@ -1,3 +1,4 @@
+//@typescript-eslint/no-explicit-any
 import { ethers } from 'ethers'
 import { useEffect, useState } from 'react'
 import { FiXCircle, FiPlayCircle } from 'react-icons/fi'
@@ -13,8 +14,8 @@ const Game = () => {
   const [currentTurn, setCurrentTurn] = useState<string>('')
   const [joinerInput, setJoinerInput] = useState<any>()
 
-  const [cachedSigner, setCachedSigner] = useState<ethers.Signer | null>(null)
-  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [cachedSigner] = useState<ethers.Signer | null>(null)
+  const [walletAddress] = useState<string | null>(null)
 
   useEffect(() => {
     if (currentGame) {

@@ -1,3 +1,4 @@
+//@typescript-eslint/no-explicit-any
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -153,16 +154,16 @@ export default function Home() {
     setCurrentTurn('')
   }
 
-  const exitGame = async () => {
-    if (!cachedSigner || !currentGame) return
-    const contract = new ethers.Contract(
-      contractAddress!,
-      contractABI,
-      cachedSigner,
-    )
-    // await contract.exitGame(currentGame) // Call the exit game method
-    // closeGame()
-  }
+  // const exitGame = async () => {
+  //   if (!cachedSigner || !currentGame) return
+  //   const contract = new ethers.Contract(
+  //     contractAddress!,
+  //     contractABI,
+  //     cachedSigner,
+  //   )
+  //   // await contract.exitGame(currentGame) // Call the exit game method
+  //   // closeGame()
+  // }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1F2937] to-[#4F46E5] text-white">
@@ -215,10 +216,7 @@ export default function Home() {
                   >
                     <FiXCircle className="inline-block mr-2" /> Close Game
                   </Button>
-                  <Button
-                    onClick={exitGame}
-                    className="w-full bg-red-500 text-white hover:bg-red-600"
-                  >
+                  <Button className="w-full bg-red-500 text-white hover:bg-red-600">
                     <FiPlayCircle className="inline-block mr-2" /> Exit Game
                   </Button>
                 </div>
