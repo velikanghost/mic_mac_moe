@@ -1,0 +1,179 @@
+[
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "gameId",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "player1",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "player2",
+                "type": "address"
+            }
+        ],
+        "name": "GameCreated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "gameId",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "enum MicMacMoe.GameState",
+                "name": "state",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "winner",
+                "type": "address"
+            }
+        ],
+        "name": "GameEnded",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "gameId",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "player",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint8",
+                "name": "position",
+                "type": "uint8"
+            }
+        ],
+        "name": "MoveMade",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "player2",
+                "type": "address"
+            }
+        ],
+        "name": "createGame",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "gameCount",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "games",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "player1",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "player2",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "currentTurn",
+                "type": "address"
+            },
+            {
+                "internalType": "enum MicMacMoe.GameState",
+                "name": "state",
+                "type": "uint8"
+            },
+            {
+                "internalType": "address",
+                "name": "winner",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "gameId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getBoard",
+        "outputs": [
+            {
+                "internalType": "uint8[9]",
+                "name": "",
+                "type": "uint8[9]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "gameId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint8",
+                "name": "position",
+                "type": "uint8"
+            }
+        ],
+        "name": "makeMove",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
