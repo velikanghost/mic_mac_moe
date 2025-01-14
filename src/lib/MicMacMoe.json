@@ -3,10 +3,10 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
-                "internalType": "uint256",
+                "indexed": true,
+                "internalType": "bytes32",
                 "name": "gameId",
-                "type": "uint256"
+                "type": "bytes32"
             },
             {
                 "indexed": true,
@@ -28,10 +28,10 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
-                "internalType": "uint256",
+                "indexed": true,
+                "internalType": "bytes32",
                 "name": "gameId",
-                "type": "uint256"
+                "type": "bytes32"
             },
             {
                 "indexed": false,
@@ -53,10 +53,10 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
-                "internalType": "uint256",
+                "indexed": true,
+                "internalType": "bytes32",
                 "name": "gameId",
-                "type": "uint256"
+                "type": "bytes32"
             },
             {
                 "indexed": true,
@@ -80,32 +80,30 @@
                 "internalType": "address",
                 "name": "player2",
                 "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "player1",
+                "type": "address"
             }
         ],
         "name": "createGame",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "gameCount",
         "outputs": [
             {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
+                "internalType": "bytes32",
+                "name": "gameId",
+                "type": "bytes32"
             }
         ],
-        "stateMutability": "view",
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
         "inputs": [
             {
-                "internalType": "uint256",
+                "internalType": "bytes32",
                 "name": "",
-                "type": "uint256"
+                "type": "bytes32"
             }
         ],
         "name": "games",
@@ -142,9 +140,9 @@
     {
         "inputs": [
             {
-                "internalType": "uint256",
+                "internalType": "bytes32",
                 "name": "gameId",
-                "type": "uint256"
+                "type": "bytes32"
             }
         ],
         "name": "getBoard",
@@ -161,19 +159,67 @@
     {
         "inputs": [
             {
-                "internalType": "uint256",
+                "internalType": "address",
+                "name": "player",
+                "type": "address"
+            }
+        ],
+        "name": "getPlayerGames",
+        "outputs": [
+            {
+                "internalType": "bytes32[]",
+                "name": "",
+                "type": "bytes32[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32",
                 "name": "gameId",
-                "type": "uint256"
+                "type": "bytes32"
             },
             {
                 "internalType": "uint8",
                 "name": "position",
                 "type": "uint8"
+            },
+            {
+                "internalType": "address",
+                "name": "player",
+                "type": "address"
             }
         ],
         "name": "makeMove",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "playerGames",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     }
 ]
