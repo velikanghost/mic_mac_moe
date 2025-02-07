@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import '@rainbow-me/rainbowkit/styles.css'
 import './globals.css'
-import WagmiProviderWrapper from '@/components/WagmiProviderWrapper' // ✅ Import the new client component
+import WagmiProviderWrapper from '@/app/WagmiProviderWrapper' // ✅ Import the new client component
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

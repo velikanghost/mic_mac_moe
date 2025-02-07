@@ -1,144 +1,183 @@
 import { FC, useEffect, useState } from 'react'
 import GameBoard from './GameBoard'
-import { Client, LocalAccount, PublicClient, WalletClient } from 'viem'
+import {
+  Client,
+  createPublicClient,
+  createWalletClient,
+  http,
+  LocalAccount,
+  PublicClient,
+  WalletClient,
+} from 'viem'
 import { FiCopy } from 'react-icons/fi'
 import { mmmAbi } from '../lib/MicMacMoe'
-
-const contractAddress = process.env.NEXT_PUBLIC_MICMACMOE_CONTRACT_ADDRESS
+import { monadDevnet } from '@/lib/customChain'
 
 interface GameProps {
-  gameWalletClient: WalletClient
-  gamePublicClient: PublicClient
-  walletAddress: string
+  connectedAddress: string
   gameWallet: LocalAccount
 }
 
-const Game: FC<GameProps> = ({
-  gameWalletClient,
-  gamePublicClient,
-  walletAddress,
-  gameWallet,
-}) => {
+const transport = http(process.env.NEXT_PUBLIC_MONAD_RPC_URL)
+const contractAddress = process.env.NEXT_PUBLIC_MICMACMOE_CONTRACT_ADDRESS
+
+const publicClient = createPublicClient({
+  chain: monadDevnet,
+  transport,
+})
+
+const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   const [board, setBoard] = useState<any>(null)
   const [currentGame, setCurrentGame] = useState<string | null>(null)
   const [currentTurn, setCurrentTurn] = useState<string>('')
   const [joinerInput, setJoinerInput] = useState<any>()
   const [player2Address, setPlayer2Address] = useState<string>('')
-  const [gameId, setGameId] = useState<string>(
-    localStorage.getItem('gameId')! || '',
+  const [gameId, setGameId] = useState<`0x${string}`>(
+    (localStorage.getItem('gameId')! as `0x${string}`) || '',
   )
 
-  const fetchGameState = async (gameId: string) => {
-    // try {
-    //   console.log('Fetching game state for gameId:', gameId)
-    //   //const contract = new ethers.Contract(contractAddress!, mmmAbi, provider);
-    //   //const game = await contract.games(gameId);
-    //   //const rawBoard = await contract.getBoard(gameId);
-    //   // Convert Proxy/Result into a plain array
-    //   const board = Array.from(rawBoard, (cell) =>
-    //     typeof cell === 'bigint' ? Number(cell) : cell,
-    //   )
-    //   console.log('Fetched board:', board)
-    //   // Compare with the current board state
-    //   const boardAsString = JSON.stringify(board)
-    //   const currentBoardAsString = JSON.stringify(
-    //     board?.map((cell) => (typeof cell === 'bigint' ? Number(cell) : cell)),
-    //   )
-    //   if (boardAsString !== currentBoardAsString) {
-    //     console.log('Reverting to blockchain state...')
-    //     setBoard(board)
-    //     setCurrentTurn(game.currentTurn.toLowerCase())
-    //     //setCurrentGame(gameId)
-    //   } else {
-    //     console.log('UI matches blockchain state. No revert needed.')
-    //   }
-    // } catch (error) {
-    //   console.error('Error fetching game state:', error)
-    //   setBoard([])
-    // }
-  }
+  const walletClient = createWalletClient({
+    account: gameWallet,
+    chain: monadDevnet,
+    transport,
+  })
 
-  const makeMove = async (index: number) => {
-    if (!gameWalletClient) return
+  // const fetchGameState = async (gameId: string) => {
+  //   // try {
+  //   //   console.log('Fetching game state for gameId:', gameId)
+  //   //   //const contract = new ethers.Contract(contractAddress!, mmmAbi, provider);
+  //   //   //const game = await contract.games(gameId);
+  //   //   //const rawBoard = await contract.getBoard(gameId);
+  //   //   // Convert Proxy/Result into a plain array
+  //   //   const board = Array.from(rawBoard, (cell) =>
+  //   //     typeof cell === 'bigint' ? Number(cell) : cell,
+  //   //   )
+  //   //   console.log('Fetched board:', board)
+  //   //   // Compare with the current board state
+  //   //   const boardAsString = JSON.stringify(board)
+  //   //   const currentBoardAsString = JSON.stringify(
+  //   //     board?.map((cell) => (typeof cell === 'bigint' ? Number(cell) : cell)),
+  //   //   )
+  //   //   if (boardAsString !== currentBoardAsString) {
+  //   //     console.log('Reverting to blockchain state...')
+  //   //     setBoard(board)
+  //   //     setCurrentTurn(game.currentTurn.toLowerCase())
+  //   //     //setCurrentGame(gameId)
+  //   //   } else {
+  //   //     console.log('UI matches blockchain state. No revert needed.')
+  //   //   }
+  //   // } catch (error) {
+  //   //   console.error('Error fetching game state:', error)
+  //   //   setBoard([])
+  //   // }
+  // }
 
-    if (currentTurn !== walletAddress.toLowerCase()) {
-      alert("It's not your turn!")
-      return
-    }
-
-    //const contract = new ethers.Contract(contractAddress!, mmmAbi, gameWalletClient);
-
-    // Optimistic UI update for Player 1
-    const updatedBoard = [...(board || [])]
-    updatedBoard[index] = BigInt(walletAddress) === BigInt(currentTurn) ? 1 : 2
-    setBoard(updatedBoard)
-    setCurrentGame(gameId)
-
+  const fetchGameState = async (gameId: `0x${string}`) => {
     try {
-      //const tx = await contract.makeMove(currentGame, index, walletAddress);
-      //await tx.wait();
+      console.log('Fetching game state for gameId:', gameId)
 
-      //socket.emit("move", { gameId: currentGame, index, player: walletAddress });
+      const game = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'games',
+        args: [gameId as `0x${string}`],
+      })
 
-      // Fetch the blockchain state after move confirmation
-      fetchGameState(currentGame!)
+      const rawBoard = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'getBoard',
+        args: [gameId as `0x${string}`],
+      })
+
+      console.log({ game })
+
+      const [currentTurn] = game
+
+      setBoard(rawBoard)
+      setCurrentTurn(currentTurn.toLowerCase())
+      setCurrentGame(gameId)
+      console.log('Game state updated successfully!')
     } catch (error) {
-      console.error('Error making move:', error)
-      alert('Transaction failed! Reverting move...')
-      fetchGameState(currentGame!) // Revert to the blockchain state
+      console.error('Error fetching game state:', error)
+      setBoard([]) // Fallback to an empty board on error
     }
   }
 
   const createGame = async (opponentAddress: string) => {
-    if (!gameWalletClient || !opponentAddress || !gamePublicClient) return
+    if (!connectedAddress || !opponentAddress) return
 
-    console.log(contractAddress)
-    console.log(mmmAbi)
+    const walletClient = createWalletClient({
+      account: gameWallet,
+      chain: monadDevnet,
+      transport,
+    })
 
-    const [account] = await gameWalletClient.getAddresses()
-
-    const { request } = await gamePublicClient.simulateContract({
+    const hash = await walletClient.writeContract({
       address: contractAddress as `0x${string}`,
       abi: mmmAbi,
       functionName: 'createGame',
-      args: [opponentAddress as `0x${string}`, account],
-      account: account,
+      args: [opponentAddress as `0x${string}`, gameWallet.address],
     })
 
-    const hash = await gameWalletClient.writeContract(request)
+    const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
+    const gameId = txnReceipt.logs[0].topics[1]
 
-    console.log({ request, hash })
+    localStorage.setItem('gameId', gameId!)
+    setGameId(gameId!)
 
-    //console.log("Game Id: " + txnReceipt.logs[0].topics[1]);
-
-    localStorage.setItem('gameId', gameId)
-    setGameId(gameId)
-
-    const game = await gamePublicClient.readContract({
+    const game = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
       abi: mmmAbi,
       functionName: 'games',
       args: [gameId as `0x${string}`],
     })
 
-    console.log({ game })
-
-    //const game = await contract.games(gameId);
-    //const rawBoard = await contract.getBoard(gameId);
-
-    const rawBoard = await gamePublicClient.readContract({
+    const rawBoard = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
       abi: mmmAbi,
       functionName: 'getBoard',
       args: [gameId as `0x${string}`],
     })
 
-    console.log({ rawBoard })
+    console.log({ game })
 
-    setBoard(board)
-    //setCurrentTurn(game.currentTurn.toLowerCase());
-    setCurrentGame(gameId)
+    const [currentTurn] = game
+
+    setBoard(rawBoard)
+    setCurrentTurn(currentTurn.toLowerCase())
+    setCurrentGame(gameId!)
     console.log('Game created with ID:', gameId)
+  }
+
+  const makeMove = async (index: number) => {
+    if (currentTurn !== gameWallet.address.toLowerCase()) {
+      alert("It's not your turn!")
+      return
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'makeMove',
+      args: [gameId, index, gameWallet.address],
+    })
+
+    const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
+
+    console.log({ txnReceipt })
+
+    fetchGameState(gameId)
+
+    // Optimistic UI update for Player 1
+    // const updatedBoard = [...(board || [])]
+    // updatedBoard[index] =
+    //   BigInt(connectedAddress) === BigInt(currentTurn) ? 1 : 2
+    // setBoard(updatedBoard)
+    // setCurrentGame(gameId)
+
+    //const tx = await contract.makeMove(currentGame, index, walletAddress);
+    //await tx.wait();
   }
 
   const handleJoinGame = async () => {
@@ -146,16 +185,29 @@ const Game: FC<GameProps> = ({
       alert('Please enter a valid game ID.')
       return
     }
-    // const contract = new ethers.Contract(contractAddress!, mmmAbi, gameWalletClient);
-    // localStorage.setItem("gameId", joinerInput);
 
-    // const game = await contract.games(joinerInput);
-    // const board = await contract.getBoard(joinerInput);
+    localStorage.setItem('gameId', joinerInput)
 
-    // setBoard(board);
-    // setCurrentTurn(game.currentTurn.toLowerCase());
-    // setCurrentGame(joinerInput);
-    console.log('Game created with ID:', joinerInput)
+    const game = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'games',
+      args: [joinerInput as `0x${string}`],
+    })
+
+    const rawBoard = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'getBoard',
+      args: [joinerInput as `0x${string}`],
+    })
+
+    const [currentTurn] = game
+
+    setBoard(rawBoard)
+    setCurrentTurn(currentTurn.toLowerCase())
+    setCurrentGame(joinerInput)
+    console.log('Game joined with ID:', joinerInput)
     //await fetchGameState(joinerInput)
   }
 
@@ -173,7 +225,7 @@ const Game: FC<GameProps> = ({
   }
 
   const exitGame = async () => {
-    if (!gameWalletClient || !currentGame) return
+    if (!currentGame) return
     //const contract = new ethers.Contract(contractAddress!, mmmAbi, gameWalletClient);
     // await contract.exitGame(currentGame)
     // closeGame()
@@ -185,7 +237,7 @@ const Game: FC<GameProps> = ({
         board ? (
           <>
             <p className="mb-6 text-center font-semibold text-[#9F90F9]">
-              {currentTurn === walletAddress.toLowerCase()
+              {currentTurn === gameWallet.address.toLowerCase()
                 ? "It's your turn!"
                 : "Waiting for opponent's move..."}
             </p>

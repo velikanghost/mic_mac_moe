@@ -3,19 +3,10 @@
 import { useState } from 'react'
 import crypto from 'crypto'
 import { NextPage } from 'next'
-import {
-  LocalAccount,
-  PublicClient,
-  WalletClient,
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseEther,
-} from 'viem'
+import { LocalAccount, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { useAccount, useSignMessage } from 'wagmi'
 import { useSendTransaction } from 'wagmi'
-import { monadDevnet } from '@/lib/customChain'
 import { FiCopy } from 'react-icons/fi'
 import Game from '@/components/Game'
 
@@ -48,16 +39,13 @@ const decryptData = (encryptedData: string, key: Buffer): string => {
 const Home: NextPage = () => {
   const { address: connectedAddress, isConnected } = useAccount()
 
-  const [encryptionKey, setEncryptionKey] = useState<Buffer | null>(null)
   const [gameWallet, setGameWallet] = useState<LocalAccount>()
   const [depositAmount, setDepositAmount] = useState('0.1') // Default deposit amount
   const [gameWalletFunded, setGameWalletFunded] = useState<boolean>(false)
-  const [currentStep, setCurrentStep] = useState<number>(1) // Tracks the user's current step
-  const [gameWalletClient, setGameWalletClient] = useState<WalletClient>()
+  const [currentStep, setCurrentStep] = useState<number>(1)
   const { signMessage } = useSignMessage()
   const [signature, setSignature] = useState<string>('')
   const { sendTransactionAsync } = useSendTransaction()
-  const [gamePublicClient, setGamePublicClient] = useState<PublicClient>()
 
   const handleSignMessage = async () => {
     if (!isConnected || !connectedAddress) {
@@ -71,41 +59,19 @@ const Home: NextPage = () => {
       { message },
       {
         onSuccess: (signedMessage) => {
-          console.log('Signature:', signedMessage)
           // Check if a game wallet already exists
           const savedWallet = localStorage.getItem(
             `gameWallet_${connectedAddress}`,
           )
+
           if (savedWallet) {
             const key = deriveEncryptionKey(signedMessage)
-            setEncryptionKey(key)
-
-            console.log({ key })
 
             const decryptedPrivateKey = decryptData(savedWallet, key)
             const account = privateKeyToAccount(decryptedPrivateKey as any)
             setGameWallet(account)
+
             console.log('Restored game wallet:', account.address)
-
-            const client = createWalletClient({
-              account: account,
-              chain: monadDevnet,
-              transport: http(
-                'https://rpc-devnet.monadinfra.com/rpc/3fe540e310bbb6ef0b9f16cd23073b0a',
-              ),
-            })
-
-            console.log({ client })
-            const publicClient = createPublicClient({
-              chain: monadDevnet,
-              transport: http(
-                `https://rpc-devnet.monadinfra.com/rpc/3fe540e310bbb6ef0b9f16cd23073b0a`,
-              ),
-            })
-
-            setGamePublicClient(publicClient)
-
-            setGameWalletClient(client)
 
             setGameWalletFunded(true) // Mark the wallet as funded
             setCurrentStep(3) // Skip to the game screen if wallet is funded
@@ -136,26 +102,12 @@ const Home: NextPage = () => {
     setGameWallet(account)
 
     const key = deriveEncryptionKey(signature)
-    setEncryptionKey(key)
 
     // Encrypt and save the wallet to localStorage
     const encryptedPrivateKey = encryptData(privateKey, key)
     localStorage.setItem(`gameWallet_${connectedAddress}`, encryptedPrivateKey!)
     console.log('Generated and encrypted game wallet:', account.address)
 
-    const client = createWalletClient({
-      account,
-      chain: monadDevnet,
-      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
-    })
-
-    const publicClient = createPublicClient({
-      chain: monadDevnet,
-      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
-    })
-
-    setGamePublicClient(publicClient)
-    setGameWalletClient(client)
     setCurrentStep(2)
 
     return account
@@ -269,17 +221,12 @@ const Home: NextPage = () => {
               <h2 className="text-2xl font-semibold mb-4 text-[#9F90F9]">
                 Game Ready
               </h2>
-              {gameWalletClient &&
-                connectedAddress &&
-                gamePublicClient &&
-                gameWallet && (
-                  <Game
-                    gameWalletClient={gameWalletClient}
-                    walletAddress={connectedAddress}
-                    gamePublicClient={gamePublicClient}
-                    gameWallet={gameWallet}
-                  />
-                )}
+              {connectedAddress && gameWallet && (
+                <Game
+                  connectedAddress={connectedAddress}
+                  gameWallet={gameWallet}
+                />
+              )}
             </div>
           )}
         </div>
