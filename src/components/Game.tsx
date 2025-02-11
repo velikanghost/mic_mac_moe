@@ -1,93 +1,128 @@
-import { ethers, Wallet } from 'ethers'
 import { FC, useEffect, useState } from 'react'
-import { FiXCircle, FiPlayCircle, FiCopy } from 'react-icons/fi'
 import GameBoard from './GameBoard'
-import { Button } from './ui/button'
-import contractABI from '@/lib/MicMacMoe.json'
-import { Input } from './ui/input'
-const contractAddress = process.env.NEXT_PUBLIC_MICMACMOE_CONTRACT_ADDRESS
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  LocalAccount,
+} from 'viem'
+import { FiCopy } from 'react-icons/fi'
+import { mmmAbi } from '../lib/MicMacMoe'
+import { monadDevnet } from '@/lib/customChain'
 
 interface GameProps {
-  gameWalletSigner: Wallet
-  walletAddress: string
+  connectedAddress: string
+  gameWallet: LocalAccount
 }
 
-const Game: FC<GameProps> = ({ gameWalletSigner, walletAddress }) => {
-  const [board, setBoard] = useState<number[] | null>(null)
-  const [currentGame, setCurrentGame] = useState<number | null>(null)
+const transport = http(process.env.NEXT_PUBLIC_MONAD_RPC_URL)
+const contractAddress = process.env.NEXT_PUBLIC_MICMACMOE_CONTRACT_ADDRESS
+
+const publicClient = createPublicClient({
+  chain: monadDevnet,
+  transport,
+})
+
+const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
+  const [board, setBoard] = useState<any>(null)
+  const [currentGame, setCurrentGame] = useState<string | null>(null)
   const [currentTurn, setCurrentTurn] = useState<string>('')
   const [joinerInput, setJoinerInput] = useState<any>()
   const [player2Address, setPlayer2Address] = useState<string>('')
-  const [gameId, setGameId] = useState<string>('')
+  const [gameId, setGameId] = useState<`0x${string}`>(
+    (localStorage.getItem('gameId')! as `0x${string}`) || '',
+  )
+  const [isMoving, setIsMoving] = useState(false)
+
+  const walletClient = createWalletClient({
+    account: gameWallet,
+    chain: monadDevnet,
+    transport,
+  })
 
   useEffect(() => {
-    if (currentGame) {
-      console.log('Listening for events on game:', currentGame)
+    console.log('Setting up contract event listener...')
 
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      provider.pollingInterval = 1000
+    const unwatch = publicClient.watchContractEvent({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      onLogs: async (logs) => {
+        console.log('Event Logs:', logs[0].eventName)
+        if (logs[0].eventName === 'MoveMade') {
+          const game = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'games',
+            args: [gameId as `0x${string}`],
+          })
 
-      const contract = new ethers.Contract(
-        contractAddress!,
-        contractABI,
-        provider,
-      )
+          const rawBoard = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'getBoard',
+            args: [gameId as `0x${string}`],
+          })
 
-      const moveListener = (gameId: any, player: string, position: number) => {
-        console.log('MoveMade event detected:', {
-          gameId,
-          player,
-          position,
-        })
-        if (gameId === currentGame) {
-          fetchGameState(gameId)
+          const currentTurn = game[2]
+          console.log({ currentTurn })
+
+          setBoard(rawBoard)
+          setCurrentTurn(currentTurn.toLowerCase())
+          setCurrentGame(gameId)
         }
-      }
 
-      const gameEndListener = async (
-        gameId: any,
-        state: number,
-        winner: string,
-      ) => {
-        console.log('GameEnded event detected:', { gameId, state, winner })
-        if (gameId === currentGame) {
-          await fetchGameState(gameId)
-          alert(
-            winner !== '0x0000000000000000000000000000000000000000'
-              ? `Game Over! Winner: ${winner}`
-              : "Game Over! It's a draw!",
-          )
+        if (logs[0].eventName === 'GameEnded') {
+          const game = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'games',
+            args: [gameId as `0x${string}`],
+          })
+
+          const rawBoard = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'getBoard',
+            args: [gameId as `0x${string}`],
+          })
+
+          setBoard(rawBoard)
         }
-      }
+      },
+    })
 
-      contract.on('MoveMade', moveListener)
-      contract.on('GameEnded', gameEndListener)
+    // const logs = publicClient.getLogs()
+    // console.log('Fetched Logs:', logs)
 
-      return () => {
-        contract.off('MoveMade', moveListener)
-        contract.off('GameEnded', gameEndListener)
-        console.log('Cleaned up event listeners')
-      }
+    return () => {
+      unwatch()
     }
-  }, [currentGame, currentTurn])
+  }, [currentTurn])
 
-  const fetchGameState = async (gameId: number) => {
+  const fetchGameState = async (gameId: `0x${string}`) => {
     try {
       console.log('Fetching game state for gameId:', gameId)
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      provider.pollingInterval = 1000
-      const contract = new ethers.Contract(
-        contractAddress!,
-        contractABI,
-        provider,
-      )
 
-      const game = await contract.games(gameId)
-      const board = await contract.getBoard(gameId)
+      const game = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'games',
+        args: [gameId as `0x${string}`],
+      })
 
-      setBoard(board) // Update board state
-      setCurrentTurn(game.currentTurn.toLowerCase()) // Update current turn
-      setCurrentGame(gameId) // Update current game
+      const rawBoard = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'getBoard',
+        args: [gameId as `0x${string}`],
+      })
+
+      const currentTurn = game[2]
+      console.log({ currentTurn })
+
+      setBoard(rawBoard)
+      setCurrentTurn(currentTurn.toLowerCase())
+      setCurrentGame(gameId)
       console.log('Game state updated successfully!')
     } catch (error) {
       console.error('Error fetching game state:', error)
@@ -95,86 +130,79 @@ const Game: FC<GameProps> = ({ gameWalletSigner, walletAddress }) => {
     }
   }
 
-  const makeMove = async (index: number) => {
-    if (!gameWalletSigner) return
+  const createGame = async (opponentAddress: string) => {
+    if (!connectedAddress || !opponentAddress) return
 
-    if (currentTurn !== walletAddress.toLowerCase()) {
+    const walletClient = createWalletClient({
+      account: gameWallet,
+      chain: monadDevnet,
+      transport,
+    })
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'createGame',
+      args: [
+        opponentAddress as `0x${string}`,
+        connectedAddress as `0x${string}`,
+      ],
+    })
+
+    const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
+    const gameId = txnReceipt.logs[0].topics[1]
+
+    localStorage.setItem('gameId', gameId!)
+    setGameId(gameId!)
+
+    const game = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'games',
+      args: [gameId as `0x${string}`],
+    })
+
+    const rawBoard = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'getBoard',
+      args: [gameId as `0x${string}`],
+    })
+
+    const currentTurn = game[2]
+    console.log({ currentTurn })
+
+    setBoard(rawBoard)
+    setCurrentTurn(currentTurn.toLowerCase())
+    setCurrentGame(gameId!)
+    console.log('Game created with ID:', gameId)
+  }
+
+  const makeMove = async (index: number) => {
+    if (currentTurn !== connectedAddress.toLowerCase()) {
       alert("It's not your turn!")
       return
     }
+    setIsMoving(true)
 
-    const contract = new ethers.Contract(
-      contractAddress!,
-      contractABI,
-      gameWalletSigner,
-    )
-    const tx = await contract.makeMove(currentGame, index, walletAddress)
+    try {
+      const hash = await walletClient.writeContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'makeMove',
+        args: [gameId, index, connectedAddress as `0x${string}`],
+      })
 
-    fetchGameState(currentGame!)
-  }
+      const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
 
-  //   const makeMove = async (index: number) => {
-  //     if (!gameWalletSigner) return
+      console.log({ txnReceipt })
 
-  //     if (currentTurn !== walletAddress.toLowerCase()) {
-  //       alert("It's not your turn!")
-  //       return
-  //     }
-
-  //     // Optimistic UI update
-  //     const updatedBoard = [...board!] // Clone the current board
-  //     updatedBoard[index] =
-  //       walletAddress.toLowerCase() ===
-  //       '0x0dc3defe8075593c96be542ffd2b0b193380d937'.toLowerCase()
-  //         ? 2
-  //         : 1
-  //     setBoard(updatedBoard) // Update the UI immediately
-  //     setCurrentTurn(
-  //       currentTurn === gameWalletSigner.address.toLowerCase()
-  //         ? gameWalletSigner.address.toLowerCase() // Set to opponent's turn optimistically
-  //         : walletAddress.toLowerCase(),
-  //     )
-
-  //     try {
-  //       // Send the transaction to the contract
-  //       const contract = new ethers.Contract(
-  //         contractAddress!,
-  //         contractABI,
-  //         gameWalletSigner,
-  //       )
-  //       const tx = await contract.makeMove(currentGame, index, walletAddress)
-  //       await tx.wait()
-
-  //       // Re-fetch the game state to validate the optimistic update
-  //       await fetchGameState(currentGame!)
-  //     } catch (error) {
-  //       console.error('Error making move:', error)
-  //       // Revert the optimistic update if the transaction fails
-  //       await fetchGameState(currentGame!)
-  //     }
-  //   }
-
-  const createGame = async (opponentAddress: string) => {
-    if (!gameWalletSigner || !opponentAddress) return
-    const contract = new ethers.Contract(
-      contractAddress!,
-      contractABI,
-      gameWalletSigner,
-    )
-
-    const tx = await contract.createGame(opponentAddress, walletAddress)
-    const res = await tx.wait()
-    const gameId = res.logs[0].topics[1]
-    setGameId(gameId)
-
-    const game = await contract.games(gameId)
-    const board = await contract.getBoard(gameId)
-
-    setBoard(board) // Update board state
-    setCurrentTurn(game.currentTurn.toLowerCase()) // Update current turn
-    setCurrentGame(gameId) // Update current game
-    //await fetchGameState(gameId)
-    console.log('Game created with ID:', gameId)
+      await fetchGameState(gameId)
+      setIsMoving(false)
+    } catch (error) {
+      console.log(error)
+      setIsMoving(false)
+    }
   }
 
   const handleJoinGame = async () => {
@@ -182,7 +210,32 @@ const Game: FC<GameProps> = ({ gameWalletSigner, walletAddress }) => {
       alert('Please enter a valid game ID.')
       return
     }
-    await fetchGameState(joinerInput)
+    setGameId(joinerInput)
+
+    localStorage.setItem('gameId', joinerInput)
+
+    const game = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'games',
+      args: [joinerInput as `0x${string}`],
+    })
+
+    const rawBoard = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'getBoard',
+      args: [joinerInput as `0x${string}`],
+    })
+
+    const currentTurn = game[2]
+    console.log({ currentTurn })
+
+    setBoard(rawBoard)
+    setCurrentTurn(currentTurn.toLowerCase())
+    setCurrentGame(joinerInput)
+    console.log('Game joined with ID:', joinerInput)
+    //await fetchGameState(joinerInput)
   }
 
   const closeGame = () => {
@@ -199,13 +252,9 @@ const Game: FC<GameProps> = ({ gameWalletSigner, walletAddress }) => {
   }
 
   const exitGame = async () => {
-    if (!gameWalletSigner || !currentGame) return
-    const contract = new ethers.Contract(
-      contractAddress!,
-      contractABI,
-      gameWalletSigner,
-    )
-    // await contract.exitGame(currentGame) // Call the exit game method
+    if (!currentGame) return
+    //const contract = new ethers.Contract(contractAddress!, mmmAbi, gameWalletClient);
+    // await contract.exitGame(currentGame)
     // closeGame()
   }
 
@@ -215,31 +264,35 @@ const Game: FC<GameProps> = ({ gameWalletSigner, walletAddress }) => {
         board ? (
           <>
             <p className="mb-6 text-center font-semibold text-[#9F90F9]">
-              {currentTurn === walletAddress.toLowerCase()
+              {currentTurn === connectedAddress.toLowerCase()
                 ? "It's your turn!"
                 : "Waiting for opponent's move..."}
             </p>
             <p>{gameId.slice(0, 12) + '....' + gameId.slice(54)}</p>
-            <Button
+            <button
               onClick={copyGameId}
               className="bg-[#9F90F9] text-[#200052] mb-4"
             >
               <FiCopy className="inline-block mr-2" /> Copy GameId
-            </Button>
-            <GameBoard board={board} onCellClick={(index) => makeMove(index)} />
+            </button>
+            <GameBoard
+              board={board}
+              onCellClick={(index) => makeMove(index)}
+              isMoving={isMoving}
+            />
             <div className="mt-6 space-y-4">
-              <Button
+              <button
                 onClick={closeGame}
-                className="w-full bg-[#9F90F9] text-[#200052] hover:bg-opacity-80"
+                className="w-full bg-[#9F90F9] text-[#200052]"
               >
-                <FiXCircle className="inline-block mr-2" /> Close Game
-              </Button>
-              <Button
+                <FiCopy className="inline-block mr-2" /> Close Game
+              </button>
+              <button
                 onClick={exitGame}
-                className="w-full bg-red-500 text-white hover:bg-red-600"
+                className="w-full text-white bg-red-500 hover:bg-red-600"
               >
-                <FiPlayCircle className="inline-block mr-2" /> Exit Game
-              </Button>
+                <FiCopy className="inline-block mr-2" /> Exit Game
+              </button>
             </div>
           </>
         ) : (
@@ -247,85 +300,32 @@ const Game: FC<GameProps> = ({ gameWalletSigner, walletAddress }) => {
         )
       ) : (
         <div className="space-y-4">
-          <Input
+          <input
             placeholder="Enter Opponent Address"
             onChange={(e) => setPlayer2Address(e.target.value)}
             className="w-full bg-[#200052] text-white placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
           />
-          <Button
+          <button
             onClick={() => createGame(player2Address)}
-            className="w-full bg-[#9F90F9] text-[#200052] hover:bg-opacity-80"
+            className="w-full bg-[#9F90F9] text-[#200052]"
           >
             Start Game
-          </Button>
+          </button>
           <br />
-          <Input
+          <input
             placeholder="Enter Game ID"
             onChange={(e) => setJoinerInput(e.target.value)}
             className="w-full bg-[#200052] text-white placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
           />
-          <Button
+          <button
             onClick={handleJoinGame}
-            className="w-full bg-[#9F90F9] text-[#200052] hover:bg-opacity-80"
+            className="w-full bg-[#9F90F9] text-[#200052]"
           >
             Join Game
-          </Button>
+          </button>
         </div>
       )}
     </div>
-
-    // <div>
-    //   {currentGame ? (
-    //     board ? (
-    //       <>
-    //         <p className="mb-6 text-center font-semibold">
-    //           {currentTurn === walletAddress.toLowerCase()
-    //             ? "It's your turn!"
-    //             : "Waiting for opponent's move..."}
-    //         </p>
-    //         <GameBoard board={board} onCellClick={(index) => makeMove(index)} />
-    //         <div className="mt-6 space-y-4">
-    //           <Button
-    //             onClick={closeGame}
-    //             className="w-full bg-yellow-500 text-[#111827] hover:bg-yellow-600"
-    //           >
-    //             <FiXCircle className="inline-block mr-2" /> Close Game
-    //           </Button>
-    //           <Button
-    //             onClick={exitGame}
-    //             className="w-full bg-red-500 text-white hover:bg-red-600"
-    //           >
-    //             <FiPlayCircle className="inline-block mr-2" /> Exit Game
-    //           </Button>
-    //         </div>
-    //       </>
-    //     ) : (
-    //       <p className="text-center">Loading game state...</p>
-    //     )
-    //   ) : (
-    //     <div className="space-y-4">
-    //       <Button
-    //         onClick={() =>
-    //           createGame('0x0DC3defe8075593c96Be542fFD2b0B193380D937')
-    //         }
-    //         className="w-full bg-[#5FEDDF] text-[#111827] hover:bg-opacity-80"
-    //       >
-    //         Start Game
-    //       </Button>
-    //       <Input
-    //         placeholder="Enter Game ID"
-    //         onChange={(e) => setJoinerInput(e.target.value)}
-    //         className="w-full bg-[#4F46E5] text-white placeholder-gray-300 placeholder-opacity-50 border-[#5FEDDF]"
-    //       />
-    //       <Button
-    //         onClick={handleJoinGame}
-    //         className="w-full bg-[#5FEDDF] text-[#111827] hover:bg-opacity-80"
-    //       >
-    //         Join Game
-    //       </Button>
-    //     </div>
-    //   )}
-    // </div>
   )
 }
 
