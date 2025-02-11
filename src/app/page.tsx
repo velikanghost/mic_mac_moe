@@ -9,6 +9,7 @@ import { useAccount, useSignMessage } from 'wagmi'
 import { useSendTransaction } from 'wagmi'
 import { FiCopy } from 'react-icons/fi'
 import Game from '@/components/Game'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 // Function to derive encryption key using SHA-256
 const deriveEncryptionKey = (input: string): Buffer => {
@@ -148,6 +149,7 @@ const Home: NextPage = () => {
           Mic-Mac-Moe
         </h1>
         <div className="max-w-md mx-auto bg-[#200052] rounded-3xl p-8 shadow-lg">
+          {!isConnected && <ConnectButton />}
           {currentStep === 1 && isConnected && (
             <div className="text-center">
               {!signature ? (

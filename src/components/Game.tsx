@@ -1,4 +1,4 @@
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import GameBoard from './GameBoard'
 import {
   createPublicClient,
@@ -32,12 +32,72 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   const [gameId, setGameId] = useState<`0x${string}`>(
     (localStorage.getItem('gameId')! as `0x${string}`) || '',
   )
+  const [isMoving, setIsMoving] = useState(false)
 
   const walletClient = createWalletClient({
     account: gameWallet,
     chain: monadDevnet,
     transport,
   })
+
+  useEffect(() => {
+    console.log('Setting up contract event listener...')
+
+    const unwatch = publicClient.watchContractEvent({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      onLogs: async (logs) => {
+        console.log('Event Logs:', logs[0].eventName)
+        if (logs[0].eventName === 'MoveMade') {
+          const game = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'games',
+            args: [gameId as `0x${string}`],
+          })
+
+          const rawBoard = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'getBoard',
+            args: [gameId as `0x${string}`],
+          })
+
+          const currentTurn = game[2]
+          console.log({ currentTurn })
+
+          setBoard(rawBoard)
+          setCurrentTurn(currentTurn.toLowerCase())
+          setCurrentGame(gameId)
+        }
+
+        if (logs[0].eventName === 'GameEnded') {
+          const game = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'games',
+            args: [gameId as `0x${string}`],
+          })
+
+          const rawBoard = await publicClient.readContract({
+            address: contractAddress as `0x${string}`,
+            abi: mmmAbi,
+            functionName: 'getBoard',
+            args: [gameId as `0x${string}`],
+          })
+
+          setBoard(rawBoard)
+        }
+      },
+    })
+
+    // const logs = publicClient.getLogs()
+    // console.log('Fetched Logs:', logs)
+
+    return () => {
+      unwatch()
+    }
+  }, [currentTurn])
 
   const fetchGameState = async (gameId: `0x${string}`) => {
     try {
@@ -57,9 +117,8 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
         args: [gameId as `0x${string}`],
       })
 
-      console.log({ game })
-
-      const [currentTurn] = game
+      const currentTurn = game[2]
+      console.log({ currentTurn })
 
       setBoard(rawBoard)
       setCurrentTurn(currentTurn.toLowerCase())
@@ -84,7 +143,10 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       address: contractAddress as `0x${string}`,
       abi: mmmAbi,
       functionName: 'createGame',
-      args: [opponentAddress as `0x${string}`, gameWallet.address],
+      args: [
+        opponentAddress as `0x${string}`,
+        connectedAddress as `0x${string}`,
+      ],
     })
 
     const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
@@ -107,9 +169,8 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       args: [gameId as `0x${string}`],
     })
 
-    console.log({ game })
-
-    const [currentTurn] = game
+    const currentTurn = game[2]
+    console.log({ currentTurn })
 
     setBoard(rawBoard)
     setCurrentTurn(currentTurn.toLowerCase())
@@ -118,23 +179,30 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   }
 
   const makeMove = async (index: number) => {
-    if (currentTurn !== gameWallet.address.toLowerCase()) {
+    if (currentTurn !== connectedAddress.toLowerCase()) {
       alert("It's not your turn!")
       return
     }
+    setIsMoving(true)
 
-    const hash = await walletClient.writeContract({
-      address: contractAddress as `0x${string}`,
-      abi: mmmAbi,
-      functionName: 'makeMove',
-      args: [gameId, index, gameWallet.address],
-    })
+    try {
+      const hash = await walletClient.writeContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'makeMove',
+        args: [gameId, index, connectedAddress as `0x${string}`],
+      })
 
-    const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
+      const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
 
-    console.log({ txnReceipt })
+      console.log({ txnReceipt })
 
-    fetchGameState(gameId)
+      await fetchGameState(gameId)
+      setIsMoving(false)
+    } catch (error) {
+      console.log(error)
+      setIsMoving(false)
+    }
   }
 
   const handleJoinGame = async () => {
@@ -142,6 +210,7 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       alert('Please enter a valid game ID.')
       return
     }
+    setGameId(joinerInput)
 
     localStorage.setItem('gameId', joinerInput)
 
@@ -159,7 +228,8 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       args: [joinerInput as `0x${string}`],
     })
 
-    const [currentTurn] = game
+    const currentTurn = game[2]
+    console.log({ currentTurn })
 
     setBoard(rawBoard)
     setCurrentTurn(currentTurn.toLowerCase())
@@ -194,7 +264,7 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
         board ? (
           <>
             <p className="mb-6 text-center font-semibold text-[#9F90F9]">
-              {currentTurn === gameWallet.address.toLowerCase()
+              {currentTurn === connectedAddress.toLowerCase()
                 ? "It's your turn!"
                 : "Waiting for opponent's move..."}
             </p>
@@ -205,7 +275,11 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
             >
               <FiCopy className="inline-block mr-2" /> Copy GameId
             </button>
-            <GameBoard board={board} onCellClick={(index) => makeMove(index)} />
+            <GameBoard
+              board={board}
+              onCellClick={(index) => makeMove(index)}
+              isMoving={isMoving}
+            />
             <div className="mt-6 space-y-4">
               <button
                 onClick={closeGame}
