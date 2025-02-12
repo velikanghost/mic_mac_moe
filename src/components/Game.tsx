@@ -6,9 +6,14 @@ import {
   http,
   LocalAccount,
 } from 'viem'
-import { FiCopy } from 'react-icons/fi'
 import { mmmAbi } from '../lib/MicMacMoe'
 import { monadDevnet } from '@/lib/customChain'
+import { CircleX, Copy, LogOut } from 'lucide-react'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { toast } from 'sonner'
+import { Bars } from 'react-loader-spinner'
+import { getPlayLetter } from '@/lib/helpers'
 
 interface GameProps {
   connectedAddress: string
@@ -25,14 +30,16 @@ const publicClient = createPublicClient({
 
 const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   const [board, setBoard] = useState<any>(null)
-  const [currentGame, setCurrentGame] = useState<string | null>(null)
+  const [game, setGame] = useState<any>(null)
   const [currentTurn, setCurrentTurn] = useState<string>('')
-  const [joinerInput, setJoinerInput] = useState<any>()
+  const [joinerInput, setJoinerInput] = useState<string>('')
   const [player2Address, setPlayer2Address] = useState<string>('')
-  const [gameId, setGameId] = useState<`0x${string}`>(
+  const [gameId, setGameId] = useState<string>(
     (localStorage.getItem('gameId')! as `0x${string}`) || '',
   )
   const [isMoving, setIsMoving] = useState(false)
+  const [isJoining, setIsJoining] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
 
   const walletClient = createWalletClient({
     account: gameWallet,
@@ -49,12 +56,16 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       onLogs: async (logs) => {
         console.log('Event Logs:', logs[0].eventName)
         if (logs[0].eventName === 'MoveMade') {
-          const game = await publicClient.readContract({
+          const rawGame = await publicClient.readContract({
             address: contractAddress as `0x${string}`,
             abi: mmmAbi,
             functionName: 'games',
             args: [gameId as `0x${string}`],
           })
+
+          if (!rawGame.includes(connectedAddress as `0x${string}`)) {
+            return
+          }
 
           const rawBoard = await publicClient.readContract({
             address: contractAddress as `0x${string}`,
@@ -63,21 +74,27 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
             args: [gameId as `0x${string}`],
           })
 
-          const currentTurn = game[2]
-          console.log({ currentTurn })
+          const currentTurn = rawGame[2]
 
+          setGame(rawGame)
           setBoard(rawBoard)
           setCurrentTurn(currentTurn.toLowerCase())
-          setCurrentGame(gameId)
+          setGameId(gameId)
         }
 
         if (logs[0].eventName === 'GameEnded') {
-          const game = await publicClient.readContract({
+          const rawGame = await publicClient.readContract({
             address: contractAddress as `0x${string}`,
             abi: mmmAbi,
             functionName: 'games',
             args: [gameId as `0x${string}`],
           })
+
+          // if (!rawGame.includes(connectedAddress as `0x${string}`)) {
+          //   return
+          // }
+
+          //console.log('Endgame: ', rawGame)
 
           const rawBoard = await publicClient.readContract({
             address: contractAddress as `0x${string}`,
@@ -87,12 +104,10 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
           })
 
           setBoard(rawBoard)
+          toast.success(`Winner is ${rawGame[4]}`)
         }
       },
     })
-
-    // const logs = publicClient.getLogs()
-    // console.log('Fetched Logs:', logs)
 
     return () => {
       unwatch()
@@ -118,11 +133,10 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       })
 
       const currentTurn = game[2]
-      console.log({ currentTurn })
 
       setBoard(rawBoard)
       setCurrentTurn(currentTurn.toLowerCase())
-      setCurrentGame(gameId)
+      setGameId(gameId)
       console.log('Game state updated successfully!')
     } catch (error) {
       console.error('Error fetching game state:', error)
@@ -139,43 +153,50 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       transport,
     })
 
-    const hash = await walletClient.writeContract({
-      address: contractAddress as `0x${string}`,
-      abi: mmmAbi,
-      functionName: 'createGame',
-      args: [
-        opponentAddress as `0x${string}`,
-        connectedAddress as `0x${string}`,
-      ],
-    })
+    setIsCreating(true)
 
-    const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
-    const gameId = txnReceipt.logs[0].topics[1]
+    try {
+      const hash = await walletClient.writeContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'createGame',
+        args: [
+          opponentAddress as `0x${string}`,
+          connectedAddress as `0x${string}`,
+        ],
+      })
 
-    localStorage.setItem('gameId', gameId!)
-    setGameId(gameId!)
+      const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
+      const gameId = txnReceipt.logs[0].topics[1]
 
-    const game = await publicClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: mmmAbi,
-      functionName: 'games',
-      args: [gameId as `0x${string}`],
-    })
+      localStorage.setItem('gameId', gameId!)
 
-    const rawBoard = await publicClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: mmmAbi,
-      functionName: 'getBoard',
-      args: [gameId as `0x${string}`],
-    })
+      const rawGame = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'games',
+        args: [gameId as `0x${string}`],
+      })
 
-    const currentTurn = game[2]
-    console.log({ currentTurn })
+      const rawBoard = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'getBoard',
+        args: [gameId as `0x${string}`],
+      })
 
-    setBoard(rawBoard)
-    setCurrentTurn(currentTurn.toLowerCase())
-    setCurrentGame(gameId!)
-    console.log('Game created with ID:', gameId)
+      const currentTurn = rawGame[2]
+
+      //setGameId(gameId!)
+      setGame(rawGame)
+      setBoard(rawBoard)
+      setCurrentTurn(currentTurn.toLowerCase())
+      setGameId(gameId!)
+      setIsCreating(false)
+    } catch (error) {
+      console.error(error)
+      setIsCreating(false)
+    }
   }
 
   const makeMove = async (index: number) => {
@@ -190,14 +211,16 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
         address: contractAddress as `0x${string}`,
         abi: mmmAbi,
         functionName: 'makeMove',
-        args: [gameId, index, connectedAddress as `0x${string}`],
+        args: [
+          gameId as `0x${string}`,
+          index,
+          connectedAddress as `0x${string}`,
+        ],
       })
 
       const txnReceipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      console.log({ txnReceipt })
-
-      await fetchGameState(gameId)
+      await fetchGameState(gameId as `0x${string}`)
       setIsMoving(false)
     } catch (error) {
       console.log(error)
@@ -210,119 +233,143 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       alert('Please enter a valid game ID.')
       return
     }
-    setGameId(joinerInput)
+    setIsJoining(true)
 
-    localStorage.setItem('gameId', joinerInput)
+    try {
+      localStorage.setItem('gameId', joinerInput)
 
-    const game = await publicClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: mmmAbi,
-      functionName: 'games',
-      args: [joinerInput as `0x${string}`],
-    })
+      const game = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'games',
+        args: [joinerInput as `0x${string}`],
+      })
 
-    const rawBoard = await publicClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: mmmAbi,
-      functionName: 'getBoard',
-      args: [joinerInput as `0x${string}`],
-    })
+      if (!game.includes(connectedAddress as `0x${string}`)) {
+        toast.error('You do not have an invite to this game')
+        setIsJoining(false)
+        return
+      }
 
-    const currentTurn = game[2]
-    console.log({ currentTurn })
+      const rawBoard = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'getBoard',
+        args: [joinerInput as `0x${string}`],
+      })
 
-    setBoard(rawBoard)
-    setCurrentTurn(currentTurn.toLowerCase())
-    setCurrentGame(joinerInput)
-    console.log('Game joined with ID:', joinerInput)
-    //await fetchGameState(joinerInput)
+      const currentTurn = game[2]
+
+      setBoard(rawBoard)
+      setCurrentTurn(currentTurn.toLowerCase())
+      setGameId(joinerInput)
+      setIsJoining(false)
+    } catch (error) {
+      console.error(error)
+      setIsJoining(false)
+    }
   }
 
   const closeGame = () => {
-    setCurrentGame(null)
+    setGameId('')
     setBoard(null)
     setCurrentTurn('')
+    localStorage.removeItem('gameId')
   }
 
   const copyGameId = () => {
     if (gameId) {
       navigator.clipboard.writeText(gameId)
-      alert('Game Id copied to clipboard!')
+      toast.success('Game Id copied to clipboard!')
     }
   }
 
-  const exitGame = async () => {
-    if (!currentGame) return
-    //const contract = new ethers.Contract(contractAddress!, mmmAbi, gameWalletClient);
-    // await contract.exitGame(currentGame)
-    // closeGame()
-  }
-
   return (
-    <div>
-      {currentGame ? (
+    <div className="bg-[#200052] rounded-3xl p-4 md:p-8 shadow-lg">
+      {gameId ? (
         board ? (
           <>
             <p className="mb-6 text-center font-semibold text-[#9F90F9]">
               {currentTurn === connectedAddress.toLowerCase()
-                ? "It's your turn!"
+                ? `It's your turn! You are ${getPlayLetter(
+                    game,
+                    connectedAddress,
+                  )}`
                 : "Waiting for opponent's move..."}
             </p>
-            <p>{gameId.slice(0, 12) + '....' + gameId.slice(54)}</p>
-            <button
-              onClick={copyGameId}
-              className="bg-[#9F90F9] text-[#200052] mb-4"
-            >
-              <FiCopy className="inline-block mr-2" /> Copy GameId
-            </button>
+            <Button onClick={copyGameId} className="mb-4 font-medium px-4">
+              <Copy />
+              Game ID: {gameId.slice(0, 12) + '....' + gameId.slice(54)}
+            </Button>
             <GameBoard
               board={board}
               onCellClick={(index) => makeMove(index)}
               isMoving={isMoving}
             />
             <div className="mt-6 space-y-4">
-              <button
+              <Button
+                variant="destructive"
                 onClick={closeGame}
-                className="w-full bg-[#9F90F9] text-[#200052]"
+                className="mt-4"
               >
-                <FiCopy className="inline-block mr-2" /> Close Game
-              </button>
-              <button
-                onClick={exitGame}
-                className="w-full text-white bg-red-500 hover:bg-red-600"
-              >
-                <FiCopy className="inline-block mr-2" /> Exit Game
-              </button>
+                <LogOut className="inline-block mr-2" /> Exit Game
+              </Button>
             </div>
           </>
         ) : (
-          <p className="text-center text-[#9F90F9]">Loading game state...</p>
+          <div className="flex flex-col justify-center items-center text-white">
+            <CircleX size={40} />
+            <p>This game has ended</p>
+            <Button variant="destructive" onClick={closeGame} className="mt-4">
+              <LogOut className="inline-block mr-2" /> Exit Game
+            </Button>
+          </div>
         )
       ) : (
-        <div className="space-y-4">
-          <input
-            placeholder="Enter Opponent Address"
-            onChange={(e) => setPlayer2Address(e.target.value)}
-            className="w-full bg-[#200052] text-white placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
-          />
-          <button
-            onClick={() => createGame(player2Address)}
-            className="w-full bg-[#9F90F9] text-[#200052]"
-          >
-            Start Game
-          </button>
-          <br />
-          <input
-            placeholder="Enter Game ID"
-            onChange={(e) => setJoinerInput(e.target.value)}
-            className="w-full bg-[#200052] text-white placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
-          />
-          <button
-            onClick={handleJoinGame}
-            className="w-full bg-[#9F90F9] text-[#200052]"
-          >
-            Join Game
-          </button>
+        <div className="flex flex-col justify-center gap-6">
+          <h2>Start a new game</h2>
+          <div className="grid flex-1 ">
+            <Input
+              placeholder="Enter Opponent Address"
+              onChange={(e) => setPlayer2Address(e.target.value)}
+              className="w-full  placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
+            />
+            <Button onClick={() => createGame(player2Address)} className="mt-4">
+              {isCreating ? (
+                <Bars
+                  height="40"
+                  color="purple"
+                  ariaLabel="bars-loading"
+                  wrapperClass="mx-auto text-center"
+                  visible={true}
+                />
+              ) : (
+                'Start game'
+              )}
+            </Button>
+          </div>
+
+          <h2>Join an existing game</h2>
+          <div className="grid flex-1 ">
+            <Input
+              placeholder="Enter Game ID"
+              onChange={(e) => setJoinerInput(e.target.value)}
+              className="w-full bg-[#200052] text-white placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
+            />
+            <Button onClick={handleJoinGame} className="mt-4">
+              {isJoining ? (
+                <Bars
+                  height="40"
+                  color="purple"
+                  ariaLabel="bars-loading"
+                  wrapperClass="mx-auto text-center"
+                  visible={true}
+                />
+              ) : (
+                'Join game'
+              )}
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -9,9 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@mantine/core": "^7.16.3",
-    "@mantine/form": "^7.16.3",
-    "@mantine/hooks": "^7.16.3",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-separator": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.1",
     "@rainbow-me/rainbowkit": "^2.2.3",
     "@tanstack/react-query": "^5.66.0",
@@ -19,9 +18,11 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "next": "15.1.4",
+    "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-icons": "^5.4.0",
+    "react-loader-spinner": "^6.1.6",
+    "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "viem": "^2.22.21",
@@ -35,7 +36,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.1.4",
     "postcss": "^8.5.2",
-    "postcss-preset-mantine": "^1.17.0",
     "postcss-simple-vars": "^7.0.1",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

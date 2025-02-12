@@ -1,47 +1,25 @@
 'use client'
 
 import { useState } from 'react'
-import crypto from 'crypto'
 import { NextPage } from 'next'
 import { LocalAccount, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { useAccount, useSignMessage } from 'wagmi'
 import { useSendTransaction } from 'wagmi'
-import { FiCopy } from 'react-icons/fi'
 import Game from '@/components/Game'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
-
-// Function to derive encryption key using SHA-256
-const deriveEncryptionKey = (input: string): Buffer => {
-  return crypto.createHash('sha256').update(input).digest()
-}
-
-// Function to encrypt data using AES-256-CBC
-const encryptData = (data: string, key: Buffer): string => {
-  const iv = crypto.randomBytes(16) // Generate a random IV
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv)
-  const encrypted = Buffer.concat([cipher.update(data), cipher.final()])
-  return `${iv.toString('hex')}:${encrypted.toString('hex')}` // Store IV along with the encrypted data
-}
-
-// Function to decrypt data using AES-256-CBC
-const decryptData = (encryptedData: string, key: Buffer): string => {
-  const [ivHex, encryptedHex] = encryptedData.split(':')
-  const iv = Buffer.from(ivHex, 'hex')
-  const encrypted = Buffer.from(encryptedHex, 'hex')
-  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv)
-  const decrypted = Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final(),
-  ])
-  return decrypted.toString()
-}
+import { deriveEncryptionKey, decryptData, encryptData } from '@/lib/helpers'
+import { CustomConnectButton } from '@/components/CustomConnectButton'
+import Header from '@/components/Header'
+import { Button } from '@/components/ui/button'
+import { Copy } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 
 const Home: NextPage = () => {
   const { address: connectedAddress, isConnected } = useAccount()
 
   const [gameWallet, setGameWallet] = useState<LocalAccount>()
-  const [depositAmount, setDepositAmount] = useState('0.1') // Default deposit amount
+  const [depositAmount, setDepositAmount] = useState('1') // Default deposit amount
   const [gameWalletFunded, setGameWalletFunded] = useState<boolean>(false)
   const [currentStep, setCurrentStep] = useState<number>(1)
   const { signMessage } = useSignMessage()
@@ -96,9 +74,9 @@ const Home: NextPage = () => {
     // Convert the private key into an account
     const account = privateKeyToAccount(privateKey)
 
-    console.log('Generated Wallet:', account)
-    console.log('Private Key:', privateKey)
-    console.log('Address:', account.address)
+    // console.log('Generated Wallet:', account)
+    // console.log('Private Key:', privateKey)
+    // console.log('Address:', account.address)
 
     setGameWallet(account)
 
@@ -117,13 +95,13 @@ const Home: NextPage = () => {
   const copyPrivateKey = () => {
     if (gameWallet) {
       navigator.clipboard.writeText(gameWallet.publicKey)
-      alert('Private key copied to clipboard!')
+      toast.success('Private key copied to clipboard!')
     }
   }
 
   // Deposit DMON into the game wallet
   const depositTokens = async () => {
-    //if (!walletAddress || !gameWallet) return;
+    if (!connectedAddress || !gameWallet) return
 
     try {
       const tx = await sendTransactionAsync({
@@ -131,9 +109,11 @@ const Home: NextPage = () => {
         value: parseEther(depositAmount),
       })
 
-      console.log(tx)
+      //console.log(tx)
 
-      alert(`Successfully deposited ${depositAmount} DMON to the game wallet!`)
+      toast.success(
+        `Successfully deposited ${depositAmount} DMON to the game wallet!`,
+      )
 
       setGameWalletFunded(true)
       setCurrentStep(3)
@@ -142,96 +122,105 @@ const Home: NextPage = () => {
     }
   }
 
+  //bg-[#200052] rounded-3xl p-8 shadow-lg
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#632ADB] to-[#9E8CFF] text-white">
       <div className="container px-4 py-12 mx-auto">
-        <h1 className="text-5xl font-bold mb-8 text-center text-[#9F90F9]">
-          Mic-Mac-Moe
-        </h1>
-        <div className="max-w-md mx-auto bg-[#200052] rounded-3xl p-8 shadow-lg">
-          {!isConnected && <ConnectButton />}
-          {currentStep === 1 && isConnected && (
-            <div className="text-center">
-              {!signature ? (
-                <button
-                  onClick={handleSignMessage}
-                  className="px-4 py-2 text-white bg-blue-500 rounded"
-                >
-                  Sign Message
-                </button>
-              ) : (
-                <>
-                  <h2 className="text-2xl font-semibold mb-4 text-[#9F90F9]">
-                    Generate Game Wallet
-                  </h2>
-                  <p className="mb-4">
-                    Connected as:{' '}
-                    <span className="font-semibold text-[#9F90F9]">
-                      {connectedAddress}
-                    </span>
-                  </p>
-                  <button
-                    onClick={generateGameWallet}
-                    className="bg-[#9F90F9] text-[#200052]"
-                  >
-                    Generate Game Wallet
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+        <Header />
 
-          {currentStep === 2 && gameWallet && (
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold mb-4 text-[#9F90F9]">
-                Game Wallet Generated
-              </h2>
-              <p className="mb-4">
-                Game Wallet Address:{' '}
-                <span className="font-semibold text-[#9F90F9]">
-                  {gameWallet.address}
-                </span>
-              </p>
-              <button
-                onClick={copyPrivateKey}
-                className="bg-[#9F90F9] text-[#200052] mb-4"
-              >
-                <FiCopy className="inline-block mr-2" /> Copy Private Key
-              </button>
-              <div className="space-y-4">
-                <h3 className="text-lg text-[#9F90F9]">
-                  Deposit DMON into Game Wallet
-                </h3>
-                <input
-                  type="text"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  className="w-full bg-[#200052] text-white placeholder-gray-300 border-[#9F90F9]"
-                />
-                <button
-                  onClick={depositTokens}
-                  className="w-full bg-[#9F90F9] text-[#200052]"
-                >
-                  Deposit {depositAmount} DMON
-                </button>
+        {!isConnected ? (
+          <div className="text-center">
+            <h1 className="text-6xl font-extrabold mb-6 leading-tight">
+              Tic Tac Toe on <span className="text-[#52238d]">Monad</span>
+            </h1>
+            <div className="max-w-[16rem] mx-auto">
+              <CustomConnectButton />
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-xl mx-auto ">
+            {currentStep === 1 && isConnected && (
+              <div className="text-center">
+                {!signature ? (
+                  <>
+                    <div className="text-center mt-[15%]">
+                      <h1 className="text-6xl font-extrabold mb-6 leading-tight">
+                        Tic Tac Toe on{' '}
+                        <span className="text-[#9F7AEA]">Monad</span>
+                      </h1>
+                      <button
+                        onClick={handleSignMessage}
+                        className="bg-white py-3 px-6 text-[#52238d] rounded-xl hover:shadow-xl font-medium"
+                      >
+                        Sign Message
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-2xl font-semibold mb-4 text-[#9F90F9]">
+                      Generate Game Wallet
+                    </h2>
+                    <p>
+                      To improve your experience, please generate a game wallet
+                      to proceed.
+                    </p>
+                    <Button
+                      variant="default"
+                      onClick={generateGameWallet}
+                      className="mt-4"
+                    >
+                      Generate Wallet
+                    </Button>
+                  </>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {currentStep === 3 && gameWalletFunded && (
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold mb-4 text-[#9F90F9]">
-                Game Ready
-              </h2>
-              {connectedAddress && gameWallet && (
-                <Game
-                  connectedAddress={connectedAddress}
-                  gameWallet={gameWallet}
-                />
-              )}
-            </div>
-          )}
-        </div>
+            {currentStep === 2 && gameWallet && (
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold mb-4 text-[#9F90F9]">
+                  Game Wallet Generated
+                </h2>
+                <p className="mb-4">
+                  Game Wallet Address:{' '}
+                  <span className="font-semibold text-[#9F90F9]">
+                    {gameWallet.address}
+                  </span>
+                </p>
+                <Button onClick={copyPrivateKey} className=" mb-4">
+                  <Copy className="inline-block mr-2" /> Copy Private Key
+                </Button>
+                <div className="space-y-4 mt-6">
+                  <h3 className="text-lg text-[#9F90F9]">
+                    Deposit DMON into Game Wallet
+                  </h3>
+                  <Input
+                    type="text"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    className="max-w-sm mx-auto"
+                  />
+                  <Button onClick={depositTokens} className="w-[40%]">
+                    Deposit {depositAmount} DMON
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 3 && gameWalletFunded && (
+              <div className="text-center">
+                {connectedAddress && gameWallet && (
+                  <Game
+                    connectedAddress={connectedAddress}
+                    gameWallet={gameWallet}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

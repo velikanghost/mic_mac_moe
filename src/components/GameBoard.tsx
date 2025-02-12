@@ -1,6 +1,5 @@
-import { Loader } from '@mantine/core'
-import {} from '@radix-ui/react-slot'
 import { useState } from 'react'
+import { Bars } from 'react-loader-spinner'
 
 type GameBoardProps = {
   board: number[]
@@ -16,7 +15,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const [selected, setSelected] = useState<number>()
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="bg-[#200052] rounded-3xl p-4 shadow-lg">
+      <div className="bg-[#200052] rounded-3xl mt-3 md:mt-1 p-1 md:p-4 shadow-lg">
         <div className="grid grid-cols-3 gap-4">
           {board?.map((cell, index) => {
             return (
@@ -29,11 +28,12 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 }}
               >
                 {isMoving && index === selected ? (
-                  <Loader
+                  <Bars
+                    height="30"
                     color="white"
-                    type="bars"
-                    size="sm"
-                    className="mx-auto text-center"
+                    ariaLabel="bars-loading"
+                    wrapperClass="mx-auto text-center"
+                    visible={true}
                   />
                 ) : (
                   <span
