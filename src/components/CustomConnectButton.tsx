@@ -80,7 +80,7 @@ export const CustomConnectButton = () => {
                   </button>
                   <button
                     onClick={openAccountModal}
-                    className="bg-white py-2 px-4 md:py-3 md:px-6 text-[#52238d] rounded-xl hover:shadow-xl font-medium flex items-center gap-1 md:gap-3"
+                    className="bg-white hidden md:flex py-2 px-4 md:py-3 md:px-6 text-[#52238d] rounded-xl hover:shadow-xl font-medium items-center gap-1 md:gap-3"
                     type="button"
                   >
                     {account.displayName}

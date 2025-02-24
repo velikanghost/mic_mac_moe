@@ -1,24 +1,22 @@
 import { defineChain } from 'viem'
 
-export const monadDevnet = defineChain({
-  id: 20143,
-  name: 'Monad Devnet',
+export const monadTestnet = defineChain({
+  id: 10143,
+  name: 'Monad Testnet',
   nativeCurrency: {
     decimals: 18,
-    name: 'DMON',
-    symbol: 'DMON',
+    name: 'Testnet MON Token',
+    symbol: 'MON',
   },
   rpcUrls: {
     default: {
-      http: [
-        'https://rpc-devnet.monadinfra.com/rpc/3fe540e310bbb6ef0b9f16cd23073b0a',
-      ],
+      http: ['https://testnet-rpc.monad.xyz'],
     },
   },
   blockExplorers: {
     default: {
-      name: 'Explorer',
-      url: 'https://explorer.monad-devnet.devnet101.com',
+      name: 'Monad Testnet explorer',
+      url: 'https://testnet.monadexplorer.com',
     },
   },
 })
