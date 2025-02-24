@@ -126,7 +126,7 @@ const Home: NextPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#632ADB] to-[#9E8CFF] text-white">
-      <div className="container px-4 py-12 mx-auto">
+      <div className="container px-4 mx-auto">
         <Header />
 
         {!isConnected ? (
@@ -202,7 +202,7 @@ const Home: NextPage = () => {
                     onChange={(e) => setDepositAmount(e.target.value)}
                     className="max-w-sm mx-auto"
                   />
-                  <Button onClick={depositTokens} className="w-[40%]">
+                  <Button onClick={depositTokens} className="">
                     Deposit {depositAmount} DMON
                   </Button>
                 </div>

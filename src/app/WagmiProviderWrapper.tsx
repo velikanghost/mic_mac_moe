@@ -3,7 +3,7 @@
 import { WagmiProvider } from 'wagmi'
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
-import { monadDevnet } from '@/lib/customChain'
+import { monadTestnet } from '@/lib/customChain'
 import { useState, useEffect } from 'react'
 
 const queryClient = new QueryClient()
@@ -20,7 +20,7 @@ export default function WagmiProviderWrapper({
       getDefaultConfig({
         appName: process.env.NEXT_PUBLIC_REOWN_APP_NAME!,
         projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID!,
-        chains: [monadDevnet],
+        chains: [monadTestnet],
       }),
     )
   }, [])
