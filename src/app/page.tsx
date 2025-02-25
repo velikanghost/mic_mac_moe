@@ -122,12 +122,10 @@ const Home: NextPage = () => {
     }
   }
 
-  //bg-[#200052] rounded-3xl p-8 shadow-lg
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#632ADB] to-[#9E8CFF] text-white">
       <div className="container px-4 mx-auto">
-        <Header />
+        <Header signedMessage={signature} />
 
         {!isConnected ? (
           <div className="text-center">
@@ -210,7 +208,7 @@ const Home: NextPage = () => {
             )}
 
             {currentStep === 3 && gameWalletFunded && (
-              <div className="text-center">
+              <div className="text-center relative">
                 {connectedAddress && gameWallet && (
                   <Game
                     connectedAddress={connectedAddress}

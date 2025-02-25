@@ -51,7 +51,7 @@ export const CustomConnectButton = () => {
               }
               return (
                 <div className="flex gap-3">
-                  <button
+                  {/* <button
                     onClick={openChainModal}
                     type="button"
                     className="bg-white hidden py-3 px-6 text-[#52238d] rounded-xl hover:shadow-xl font-medium md:flex items-center"
@@ -77,7 +77,7 @@ export const CustomConnectButton = () => {
                       </div>
                     )}
                     {chain.name}
-                  </button>
+                  </button> */}
                   <button
                     onClick={openAccountModal}
                     className="bg-white hidden md:flex py-2 px-4 md:py-3 md:px-6 text-[#52238d] rounded-xl hover:shadow-xl font-medium items-center gap-1 md:gap-3"

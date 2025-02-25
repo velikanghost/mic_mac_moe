@@ -4,19 +4,32 @@ import { Bars } from 'react-loader-spinner'
 type GameBoardProps = {
   board: number[]
   isMoving: boolean
+  isAIMoving: boolean
   onCellClick: (index: number) => void
 }
 
 const GameBoard: React.FC<GameBoardProps> = ({
   board,
   isMoving,
+  isAIMoving,
   onCellClick,
 }) => {
   const [selected, setSelected] = useState<number>()
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="bg-[#200052] rounded-3xl mt-3 md:mt-1 p-1 md:p-4 shadow-lg">
-        <div className="grid grid-cols-3 gap-4">
+      <div className="bg-[#200052] rounded-2xl mt-3 md:mt-1 p-1 md:p-4 relative">
+        <div className="grid grid-cols-3 gap-4 relative">
+          {isAIMoving && (
+            <div className="absolute inset-0 bg-white/30 z-10 rounded-3xl border border-white/30 flex items-center justify-center">
+              <Bars
+                height="30"
+                color="purple"
+                ariaLabel="bars-loading"
+                wrapperClass="mx-auto text-center"
+                visible={true}
+              />
+            </div>
+          )}
           {board?.map((cell, index) => {
             return (
               <button
