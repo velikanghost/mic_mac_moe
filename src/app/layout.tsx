@@ -15,19 +15,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 })
 
-const myColor = [
-  '#f6eeff',
-  '#e7d9f7',
-  '#cab1ea',
-  '#ad86dd',
-  '#9462d2',
-  '#854bcb',
-  '#7d3fc9',
-  '#6b31b2',
-  '#5f2ba0',
-  '#52238d',
-]
-
 export const metadata: Metadata = {
   title: 'MicMacMoe',
   description: 'Tic Tac Toe on Monad',

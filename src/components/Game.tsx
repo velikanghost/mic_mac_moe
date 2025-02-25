@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from 'react'
+import { FC, ReactElement, useEffect, useState } from 'react'
 import GameBoard from './GameBoard'
 import {
   createPublicClient,
@@ -14,7 +14,6 @@ import { Input } from './ui/input'
 import { toast } from 'sonner'
 import { Bars } from 'react-loader-spinner'
 import { getPlayLetter } from '@/lib/helpers'
-import { privateKeyToAccount } from 'viem/accounts'
 
 interface GameProps {
   connectedAddress: string
@@ -29,6 +28,14 @@ const publicClient = createPublicClient({
   transport,
 })
 
+/**
+ * Game component handles the main game logic and UI for the MicMacMoe game.
+ * It manages game state, player moves, and interactions with the smart contract.
+ *
+ * Props:
+ * - connectedAddress: The address of the connected player.
+ * - gameWallet: The wallet account used for game transactions.
+ */
 const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   const [activeTab, setActiveTab] = useState('friend')
   const [board, setBoard] = useState<any>(null)
@@ -37,11 +44,13 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   const [joinerInput, setJoinerInput] = useState<string>('')
   const [player2Address, setPlayer2Address] = useState<string>('')
   const [gameId, setGameId] = useState<string>(
-    (localStorage.getItem('gameId')! as `0x${string}`) || '',
+    (localStorage.getItem('gameId') as `0x${string}`) || '',
   )
   const [isMoving, setIsMoving] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [isAIMoving, setIsAIMoving] = useState(false)
+  const [gameCompleted, setGameCompleted] = useState(false)
 
   const walletClient = createWalletClient({
     account: gameWallet,
@@ -113,7 +122,7 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
     return () => {
       unwatch()
     }
-  }, [currentTurn])
+  }, [currentTurn, gameId])
 
   const fetchGameState = async (gameId: `0x${string}`) => {
     try {
@@ -188,7 +197,6 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
 
       const currentTurn = rawGame[2]
 
-      //setGameId(gameId!)
       setGame(rawGame)
       setBoard(rawBoard)
       setCurrentTurn(currentTurn.toLowerCase())
@@ -208,6 +216,25 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
     }
 
     setIsCreating(true)
+    const balance = await publicClient.getBalance({
+      address: gameWallet.address,
+    })
+
+    const gasEstimate = await publicClient.estimateContractGas({
+      address: contractAddress as `0x${string}`,
+      abi: mmmAbi,
+      functionName: 'createGame',
+      args: [aiAddress as `0x${string}`, connectedAddress as `0x${string}`],
+    })
+
+    const gasPrice = await publicClient.getGasPrice()
+    const requiredGas = gasEstimate * gasPrice
+
+    if (BigInt(balance) < requiredGas) {
+      toast.error('Insufficient funds for gas, Top up game wallet!')
+      setIsCreating(false)
+      return
+    }
 
     try {
       const hash = await walletClient.writeContract({
@@ -223,8 +250,28 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       localStorage.setItem('gameId', gameId!)
 
       // Fetch game state after creation
-      await fetchGameState(gameId as `0x${string}`)
+      // await fetchGameState(gameId as `0x${string}`)
 
+      const rawGame = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'games',
+        args: [gameId as `0x${string}`],
+      })
+
+      const rawBoard = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: mmmAbi,
+        functionName: 'getBoard',
+        args: [gameId as `0x${string}`],
+      })
+
+      const currentTurn = rawGame[2]
+
+      setGame(rawGame)
+      setBoard(rawBoard)
+      setCurrentTurn(currentTurn.toLowerCase())
+      setGameId(gameId!)
       setIsCreating(false)
       console.log('AI game started!')
     } catch (error) {
@@ -258,6 +305,13 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       setIsMoving(false)
     } catch (error) {
       console.log(error)
+      if (
+        (typeof error === 'string' && error.includes('HTTP request failed')) ||
+        (error instanceof Error &&
+          error.message.includes('HTTP request failed'))
+      ) {
+        toast.error('Transaction failed. Please try again.')
+      }
       setIsMoving(false)
     }
   }
@@ -304,74 +358,27 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
     }
   }
 
+  const isBoardFull = (board: number[]): boolean => {
+    return board?.every((cell) => cell !== 0)
+  }
+
   useEffect(() => {
+    if (isBoardFull(board)) {
+      setGameCompleted(true)
+    }
     if (gameId && board && currentTurn) {
       makeAIMove(gameId as `0x${string}`, board, currentTurn)
     }
   }, [gameId, board, currentTurn])
-
-  // const makeAIMove = async (
-  //   gameId: `0x${string}`,
-  //   board: number[],
-  //   currentTurn: string,
-  // ) => {
-  //   const aiPrivateKey = process.env.NEXT_PUBLIC_AI_PRIVATE_KEY
-  //   const aiAddress = process.env.NEXT_PUBLIC_AI_WALLET_ADDRESS
-
-  //   if (!aiPrivateKey || !aiAddress) {
-  //     console.error('AI credentials missing.')
-  //     return
-  //   }
-
-  //   // AI should only move when it's its turn
-  //   if (currentTurn !== aiAddress.toLowerCase()) {
-  //     console.log("Not AI's turn yet. Waiting...")
-  //     return
-  //   }
-
-  //   const account = privateKeyToAccount(`0x${aiPrivateKey.replace(/^0x/, '')}`)
-
-  //   const aiWalletClient = createWalletClient({
-  //     account,
-  //     chain: monadTestnet,
-  //     transport,
-  //   })
-
-  //   // Get AI's best move based on board state
-  //   const aiMove = getBestMove(board)
-  //   if (aiMove === -1) {
-  //     console.log('AI has no valid move left.')
-  //     return
-  //   }
-
-  //   try {
-  //     console.log(`AI making move at index ${aiMove}`)
-
-  //     const hash = await aiWalletClient.writeContract({
-  //       address: contractAddress as `0x${string}`,
-  //       abi: mmmAbi,
-  //       functionName: 'makeMove',
-  //       args: [gameId as `0x${string}`, aiMove, aiAddress as `0x${string}`],
-  //     })
-
-  //     await publicClient.waitForTransactionReceipt({ hash })
-
-  //     // Fetch new game state after AI move
-  //     await fetchGameState(gameId as `0x${string}`)
-  //   } catch (error) {
-  //     console.error('Error making AI move:', error)
-  //   }
-  // }
 
   const makeAIMove = async (
     gameId: `0x${string}`,
     board: number[],
     currentTurn: string,
   ) => {
-    const aiPrivateKey = process.env.NEXT_PUBLIC_AI_PRIVATE_KEY
     const aiAddress = process.env.NEXT_PUBLIC_AI_WALLET_ADDRESS
 
-    if (!aiPrivateKey || !aiAddress) {
+    if (!aiAddress) {
       console.error('AI cannot initialize.')
       return
     }
@@ -387,6 +394,7 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
     const winner = rawGame[4] // Assuming index 4 is the winner field
     if (winner !== '0x0000000000000000000000000000000000000000') {
       toast(`Game over. Winner: ${winner === aiAddress ? 'AI' : winner}`)
+      //setGameCompleted(false)
       return
     }
 
@@ -394,14 +402,6 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
       console.log("Not AI's turn yet. Waiting...")
       return
     }
-
-    const account = privateKeyToAccount(`0x${aiPrivateKey.replace(/^0x/, '')}`)
-
-    const aiWalletClient = createWalletClient({
-      account,
-      chain: monadTestnet,
-      transport,
-    })
 
     const aiMove = getBestMove(board)
     if (aiMove === -1) {
@@ -411,18 +411,33 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
 
     try {
       console.log(`AI making move at index ${aiMove}`)
+      setIsAIMoving(true)
 
-      const hash = await aiWalletClient.writeContract({
-        address: contractAddress as `0x${string}`,
-        abi: mmmAbi,
-        functionName: 'makeMove',
-        args: [gameId as `0x${string}`, aiMove, aiAddress as `0x${string}`],
+      // Get disburse data from backend
+      const response = await fetch('/api/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameId,
+          aiMove,
+        }),
       })
 
-      await publicClient.waitForTransactionReceipt({ hash })
-      await fetchGameState(gameId as `0x${string}`)
+      if (!response.ok) {
+        const errorMsg = await response.json()
+        toast.error(errorMsg?.error)
+        return
+      }
+
+      //can also destructure txHash from this
+      const { success } = await response.json()
+      if (success) {
+        await fetchGameState(gameId as `0x${string}`)
+      }
+      setIsAIMoving(false)
     } catch (error) {
       console.error('Error making AI move:', error)
+      setIsAIMoving(false)
     }
   }
 
@@ -486,6 +501,7 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
     setGameId('')
     setBoard(null)
     setCurrentTurn('')
+    setIsAIMoving(false)
     localStorage.removeItem('gameId')
   }
 
@@ -496,7 +512,13 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
     }
   }
 
-  const TabButton = ({ value, icon, label }: any) => (
+  interface TabButtonProps {
+    value: string
+    icon: ReactElement
+    label: string
+  }
+
+  const TabButton: FC<TabButtonProps> = ({ value, icon, label }) => (
     <button
       onClick={() => setActiveTab(value)}
       className={`flex flex-col items-center justify-center p-4 rounded-xl transition-colors hover:scale-105 active:scale-95 ${
@@ -511,37 +533,52 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
   )
 
   return (
-    <div className="bg-[#200052] rounded-2xl md:p-8 shadow-lg">
-      {gameId ? (
-        board ? (
-          <>
-            <p className="mb-6 text-center font-semibold text-[#9F90F9]">
-              {currentTurn === connectedAddress.toLowerCase()
-                ? `It's your turn! You are ${getPlayLetter(
-                    game,
-                    connectedAddress,
-                  )}`
-                : "Waiting for opponent's move..."}
-            </p>
-            <Button
-              onClick={copyGameId}
-              className="hidden md:flex mb-4 font-medium px-4 mx-auto"
-            >
-              <Copy />
-              Game ID: {gameId.slice(0, 12) + '....' + gameId.slice(54)}
-            </Button>
-            <Button
-              onClick={copyGameId}
-              className="mb-4 font-medium px-4 md:hidden"
-            >
-              <Copy /> Copy GameID
-            </Button>
-            <GameBoard
-              board={board}
-              onCellClick={(index) => makeMove(index)}
-              isMoving={isMoving}
-            />
-            <div className="mt-6 space-y-4">
+    <>
+      <div className="bg-[#200052] rounded-2xl p-4 md:p-8 shadow-lg">
+        {gameId ? (
+          board ? (
+            <>
+              <p className="mb-6 text-center font-semibold text-[#9F90F9]">
+                {currentTurn === connectedAddress.toLowerCase()
+                  ? `It's your turn! You are ${getPlayLetter(
+                      game,
+                      connectedAddress,
+                    )}`
+                  : "Waiting for opponent's move..."}
+              </p>
+              <Button
+                onClick={copyGameId}
+                className="hidden md:flex mb-4 font-medium px-4 mx-auto"
+              >
+                <Copy />
+                Game ID: {gameId.slice(0, 12) + '....' + gameId.slice(54)}
+              </Button>
+              <Button
+                onClick={copyGameId}
+                className="mb-4 font-medium px-4 md:hidden"
+              >
+                <Copy /> Copy GameID
+              </Button>
+              <GameBoard
+                board={board}
+                onCellClick={(index) => makeMove(index)}
+                isMoving={isMoving}
+                isAIMoving={isAIMoving}
+              />
+              <div className="mt-6 space-y-4">
+                <Button
+                  variant="destructive"
+                  onClick={closeGame}
+                  className="mt-4"
+                >
+                  <LogOut className="inline-block mr-2" /> Exit Game
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col justify-center items-center text-white">
+              <CircleX size={40} />
+              <p>This game has ended</p>
               <Button
                 variant="destructive"
                 onClick={closeGame}
@@ -550,120 +587,116 @@ const Game: FC<GameProps> = ({ connectedAddress, gameWallet }) => {
                 <LogOut className="inline-block mr-2" /> Exit Game
               </Button>
             </div>
-          </>
+          )
         ) : (
-          <div className="flex flex-col justify-center items-center text-white">
-            <CircleX size={40} />
-            <p>This game has ended</p>
-            <Button variant="destructive" onClick={closeGame} className="mt-4">
-              <LogOut className="inline-block mr-2" /> Exit Game
-            </Button>
-          </div>
-        )
-      ) : (
-        <div className=" text-[#E2E2E2] flex items-center justify-center">
-          <div className="w-full max-w-md p-2 md:p-8 rounded-3xl ">
-            <h1 className="text-4xl font-bold mb-8 text-center text-[#9F7AEA]">
-              Play
-            </h1>
+          <div className=" text-[#E2E2E2] flex items-center justify-center">
+            <div className="w-full max-w-md p-2 md:p-8 rounded-3xl ">
+              <h1 className="text-4xl font-bold mb-8 text-center text-[#9F7AEA]">
+                Play
+              </h1>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <TabButton
-                value="friend"
-                icon={<Users size={24} />}
-                label="Friend"
-              />
-              <TabButton value="ai" icon={<LogIn size={24} />} label="AI" />
-              <TabButton value="join" icon={<LogIn size={24} />} label="Join" />
-            </div>
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <TabButton
+                  value="friend"
+                  icon={<Users size={24} />}
+                  label="Friend"
+                />
+                <TabButton value="ai" icon={<LogIn size={24} />} label="AI" />
+                <TabButton
+                  value="join"
+                  icon={<LogIn size={24} />}
+                  label="Join"
+                />
+              </div>
 
-            <div>
-              {activeTab === 'friend' && (
-                <div className="space-y-4">
-                  <Input
-                    placeholder="Enter Opponent Address"
-                    onChange={(e) => setPlayer2Address(e.target.value)}
-                    className="w-full  placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
-                  />
-                  <Button
-                    onClick={() => createGame(player2Address)}
-                    className="mt-4 w-full bg-[#6B46C1] text-[#E2E2E2] hover:bg-[#9F7AEA] transition-colors"
-                  >
-                    {isCreating ? (
-                      <Bars
-                        height="50"
-                        color="white"
-                        ariaLabel="bars-loading"
-                        wrapperClass="mx-auto text-center py-1"
-                        visible={true}
-                      />
-                    ) : (
-                      'Start game'
-                    )}
-                  </Button>
-                </div>
-              )}
+              <div>
+                {activeTab === 'friend' && (
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="Enter Opponent Address"
+                      onChange={(e) => setPlayer2Address(e.target.value)}
+                      className="w-full  placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
+                    />
+                    <Button
+                      onClick={() => createGame(player2Address)}
+                      className="mt-4 w-full bg-[#6B46C1] text-[#E2E2E2] hover:bg-[#9F7AEA] transition-colors"
+                    >
+                      {isCreating ? (
+                        <Bars
+                          height="50"
+                          color="white"
+                          ariaLabel="bars-loading"
+                          wrapperClass="mx-auto text-center py-1"
+                          visible={true}
+                        />
+                      ) : (
+                        'Start game'
+                      )}
+                    </Button>
+                  </div>
+                )}
 
-              {activeTab === 'ai' && (
-                <div className="space-y-4">
-                  <p className="text-center text-[#A0AEC0] mb-4">
-                    Challenge AI and test your skills!
-                  </p>
-                  <Button
-                    onClick={createGameWithAI}
-                    className="w-full bg-[#6B46C1] text-[#E2E2E2] hover:bg-[#9F7AEA] transition-colors"
-                  >
-                    {isCreating ? (
-                      <Bars
-                        height="50"
-                        color="white"
-                        ariaLabel="bars-loading"
-                        wrapperClass="mx-auto text-center py-1"
-                        visible={true}
-                      />
-                    ) : (
-                      'Start Game with AI'
-                    )}
-                  </Button>
-                </div>
-              )}
+                {activeTab === 'ai' && (
+                  <div className="space-y-4">
+                    <p className="text-center text-[#A0AEC0] mb-4">
+                      Challenge AI and test your skills!
+                    </p>
+                    <Button
+                      onClick={createGameWithAI}
+                      className="w-full bg-[#6B46C1] text-[#E2E2E2] hover:bg-[#9F7AEA] transition-colors"
+                    >
+                      {isCreating ? (
+                        <Bars
+                          height="50"
+                          color="white"
+                          ariaLabel="bars-loading"
+                          wrapperClass="mx-auto text-center py-1"
+                          visible={true}
+                        />
+                      ) : (
+                        'Start Game with AI'
+                      )}
+                    </Button>
+                  </div>
+                )}
 
-              {activeTab === 'join' && (
-                <div className="space-y-4">
-                  <Input
-                    placeholder="Enter Game ID"
-                    onChange={(e) => setJoinerInput(e.target.value)}
-                    className="w-full  placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
-                  />
-                  <Button
-                    onClick={handleJoinGame}
-                    className="w-full bg-[#6B46C1] text-[#E2E2E2] hover:bg-[#9F7AEA] transition-colors"
-                  >
-                    {isJoining ? (
-                      <Bars
-                        height="50"
-                        color="white"
-                        ariaLabel="bars-loading"
-                        wrapperClass="mx-auto text-center py-1"
-                        visible={true}
-                      />
-                    ) : (
-                      'Join Game'
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
+                {activeTab === 'join' && (
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="Enter Game ID"
+                      onChange={(e) => setJoinerInput(e.target.value)}
+                      className="w-full  placeholder-gray-300 placeholder-opacity-50 border-[#9F90F9]"
+                    />
+                    <Button
+                      onClick={handleJoinGame}
+                      className="w-full bg-[#6B46C1] text-[#E2E2E2] hover:bg-[#9F7AEA] transition-colors"
+                    >
+                      {isJoining ? (
+                        <Bars
+                          height="50"
+                          color="white"
+                          ariaLabel="bars-loading"
+                          wrapperClass="mx-auto text-center py-1"
+                          visible={true}
+                        />
+                      ) : (
+                        'Join Game'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
 
-            <div className="mt-12 flex justify-between items-center opacity-50">
-              <X size={24} className="text-[#9F7AEA]" />
-              <Circle size={24} className="text-[#6B46C1]" />
-              <X size={24} className="text-[#9F7AEA]" />
+              <div className="mt-12 flex justify-between items-center opacity-50">
+                <X size={24} className="text-[#9F7AEA]" />
+                <Circle size={24} className="text-[#6B46C1]" />
+                <X size={24} className="text-[#9F7AEA]" />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   )
 }
 
